@@ -56,7 +56,7 @@ def parse_graph(folder: str):
     nodes = [int(f[:-5]) for f in files]
     # node_set = set(nodes)
 
-    # create hashmap
+    # create hashmap for outdegree
     out_links = {u: set() for u in nodes}
 
     for u in nodes:
@@ -74,7 +74,7 @@ def parse_graph(folder: str):
         # assign adj list values
         out_links[u] = {v for v in targets}
 
-    # create hashmap
+    # create hashmap for indegree
     in_links = {u: set() for u in nodes}
     for u, outs in out_links.items():
         for v in outs:
@@ -82,6 +82,8 @@ def parse_graph(folder: str):
 
     return nodes, out_links, in_links
 
+# followed page rank algo given by professor
+# used ChatGPT for assistance since I never learned page rank algo before
 def pagerank(nodes, out_links, in_links, max_iters=500):
     n = len(nodes)
     if n == 0:
@@ -96,7 +98,7 @@ def pagerank(nodes, out_links, in_links, max_iters=500):
     prev_sum = sum(pr)
 
     for it in range(1, max_iters + 1):
-        new_pr = [(1.0 - damping) / n] * n #in formula given, we set it as 1-0.85 = 0.15; so 0.15/n
+        new_pr = [(1.0 - damping) / n] * n  #in formula given, we set it as 1-0.85 = 0.15; so 0.15/n
 
         dangling_mass = 0.0
         for u in nodes:
