@@ -144,7 +144,8 @@ def parse_graph_gcs(bucket_name, folder_prefix):
         # m.group(0)  # 'href="123.html"' ; m.group(1)  # '123'
         targets = set(int(m.group(1)) for m in LINK_RE.finditer(content))
         return u, targets
-
+    
+    # ChatGPT assisted with multithreading this operation
     # Download 20 files at a time (adjust based on your connection)
     with ThreadPoolExecutor(max_workers=20) as executor:
         results = executor.map(download_and_parse, html_blobs)
