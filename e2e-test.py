@@ -39,5 +39,9 @@ def test_parse_graph_and_degrees_and_pagerank():
         assert all(v >= 0.0 for v in pr.values())
         assert math.isclose(sum(pr.values()), 1.0, rel_tol=1e-6, abs_tol=1e-9)
 
-        # Just a reasonable expectation: 2 has more inbound than 1, so PR(2) > PR(1)
+        # 2 has more inbound than 1, so PR(2) > PR(1)
         assert pr[2] > pr[1]
+
+if __name__ == "__main__":
+    test_parse_graph_and_degrees_and_pagerank()
+    print("Test passed")

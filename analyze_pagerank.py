@@ -84,6 +84,14 @@ def parse_graph(folder: str):
 
 # followed page rank algo given by professor
 # used ChatGPT for assistance since I never learned page rank algo before
+'''
+Page rank logic:
+- A link from an important page counts more than a link from an unimportant one
+- A link from a page with few outgoing links counts more than one from a spammy page
+- Ten low-quality inbound links can be weaker than one high-quality link
+
+PageRank is influenced by the number of incoming links, it primarily weights links by the importance and out-degree of the linking pages
+'''
 def pagerank(nodes, out_links, in_links, max_iters=500):
     n = len(nodes)
     if n == 0:
