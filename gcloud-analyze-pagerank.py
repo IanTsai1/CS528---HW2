@@ -4,7 +4,7 @@ import os
 import re
 from statistics import mean, median
 import time
-
+from google.cloud import storage
 
 # this regex is used to find reference link by checking for 'href' 
 LINK_RE = re.compile(r'href\s*=\s*["\'](\d+)\.html["\']', re.IGNORECASE)
@@ -51,37 +51,6 @@ def summarize(values: list[int]) -> dict[str, float]:
         "max": float(max(values)),
     }
 
-#Used chatgpt but also added my own explanation to ensure I fully understand the code
-def parse_graph(folder: str):
-    files = list_html_files(folder)
-    nodes = [int(f[:-5]) for f in files]
-    # node_set = set(nodes)
-
-    # create hashmap for outdegree
-    out_links = {u: set() for u in nodes}
-
-    for u in nodes:
-        path = os.path.join(folder, f"{u}.html")
-        try:
-            with open(path, "r", encoding="utf-8", errors="ignore") as f:
-                text = f.read()
-        except FileNotFoundError:
-            continue
-
-        # find reference link; m.group(1) is used to get the digit
-        # m.group(0)  # 'href="123.html"' ; m.group(1)  # '123'
-        targets = set(int(m.group(1)) for m in LINK_RE.finditer(text))
-
-        # assign adj list values
-        out_links[u] = {v for v in targets}
-
-    # create hashmap for indegree
-    in_links = {u: set() for u in nodes}
-    for u, outs in out_links.items():
-        for v in outs:
-            in_links[v].add(u)
-
-    return nodes, out_links, in_links
 
 # followed page rank algo given by professor
 # used ChatGPT for assistance since I never learned page rank algo before
@@ -139,16 +108,60 @@ def pagerank(nodes, out_links, in_links, max_iters=500):
 
     return {nodes[i]: pr[i] for i in range(n)}, max_iters
 
+# modified code for gcloud
+def parse_graph_gcs(bucket_name, folder_prefix):
+    # access bucket
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    
+    # List all blobs/files in the specific folder
+    blobs = bucket.list_blobs(prefix=folder_prefix)
+    
+    html_blobs = []
+    nodes = []
+    
+    # iterate all files and get html files
+    for blob in blobs:
+        if blob.name.endswith(".html"):
+            # Extract the ID from the filename (e.g., 'generated_html/123.html')
+            file_id = int(blob.name.split('/')[-1].replace('.html', ''))
+            # store file object
+            html_blobs.append(blob)
+            nodes.append(file_id)
+
+    nodes.sort()
+    out_links = {u: set() for u in nodes}
+
+    for blob in html_blobs:
+        u = int(blob.name.split('/')[-1].replace('.html', ''))
+        
+        # get content of the file
+        content = blob.download_as_bytes().decode("utf-8", errors="ignore")
+        
+        # find reference link; m.group(1) is used to get the digit
+        # m.group(0)  # 'href="123.html"' ; m.group(1)  # '123'
+        targets = set(int(m.group(1)) for m in LINK_RE.finditer(content))
+        out_links[u] = targets
+
+
+    in_links = {u: set() for u in nodes}
+    for u, outs in out_links.items():
+        for v in outs:
+            if v in in_links: 
+                in_links[v].add(u)
+
+    return nodes, out_links, in_links
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("folder", help="Folder containing N.html files")
-
+    ap.add_argument("--bucket", default="iantsai-hw2", help="GCS Bucket Name")
+    ap.add_argument("--folder", default="generated_html/", help="Folder prefix in bucket")
     args = ap.parse_args()
 
     start = time.perf_counter()
+    
+    nodes, out_links, in_links = parse_graph_gcs(args.bucket, args.folder)
 
-    nodes, out_links, in_links = parse_graph(args.folder)
 
     out_deg = [len(out_links[u]) for u in nodes]
     in_deg = [len(in_links[u]) for u in nodes]
