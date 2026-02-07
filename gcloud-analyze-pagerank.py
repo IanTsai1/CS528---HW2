@@ -5,6 +5,7 @@ import re
 from statistics import mean, median
 import time
 from google.cloud import storage
+from concurrent.futures import ThreadPoolExecutor
 
 # this regex is used to find reference link by checking for 'href' 
 LINK_RE = re.compile(r'href\s*=\s*["\'](\d+)\.html["\']', re.IGNORECASE)
@@ -109,13 +110,15 @@ def pagerank(nodes, out_links, in_links, max_iters=500):
     return {nodes[i]: pr[i] for i in range(n)}, max_iters
 
 # modified code for gcloud
+#used multihtreading to optimize code since access to gcloud is 'i/o' bound which
+# can be optimzied with multithreading since it can interleave between files
 def parse_graph_gcs(bucket_name, folder_prefix):
     # access bucket
     client = storage.Client()
     bucket = client.bucket(bucket_name)
     
     # List all blobs/files in the specific folder
-    blobs = bucket.list_blobs(prefix=folder_prefix)
+    blobs = list(bucket.list_blobs(prefix=folder_prefix))
     
     html_blobs = []
     nodes = []
@@ -132,16 +135,21 @@ def parse_graph_gcs(bucket_name, folder_prefix):
     nodes.sort()
     out_links = {u: set() for u in nodes}
 
-    for blob in html_blobs:
+    def download_and_parse(blob):
         u = int(blob.name.split('/')[-1].replace('.html', ''))
-        
         # get content of the file
         content = blob.download_as_bytes().decode("utf-8", errors="ignore")
-        
+
         # find reference link; m.group(1) is used to get the digit
         # m.group(0)  # 'href="123.html"' ; m.group(1)  # '123'
         targets = set(int(m.group(1)) for m in LINK_RE.finditer(content))
-        out_links[u] = targets
+        return u, targets
+
+    # Download 20 files at a time (adjust based on your connection)
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        results = executor.map(download_and_parse, html_blobs)
+        for u, targets in results:
+            out_links[u] = targets
 
 
     in_links = {u: set() for u in nodes}
@@ -159,7 +167,7 @@ def main():
     args = ap.parse_args()
 
     start = time.perf_counter()
-    
+
     nodes, out_links, in_links = parse_graph_gcs(args.bucket, args.folder)
 
 
